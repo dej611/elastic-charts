@@ -20,7 +20,8 @@
 import { boolean, color, number, select } from '@storybook/addon-knobs';
 import React from 'react';
 
-import { Axis, BarSeries, Chart, Position, ScaleType, Settings } from '../../src';
+import { switchTheme } from '../../.storybook/theme_service';
+import { Axis, BarSeries, Chart, Position, ScaleType, Settings, DARK_THEME, LIGHT_THEME } from '../../src';
 import { SeededDataGenerator } from '../../src/mocks/utils';
 import { getChartRotationKnob } from '../utils/knobs';
 
@@ -39,6 +40,10 @@ const frozenData: { [key: string]: any[] } = {
 };
 
 export const Example = () => {
+  const darkmode = boolean('darkmode', true);
+  const className = darkmode ? 'story-chart-dark' : 'story-chart';
+  switchTheme(darkmode ? 'dark' : 'light');
+
   const showValueLabel = boolean('show value label', true);
   const isAlternatingValueLabel = boolean('alternating value label', false);
   const isValueContainedInElement = boolean('contain value label within bar element', false);
@@ -54,6 +59,7 @@ export const Example = () => {
   const debug = boolean('debug', false);
   const useInverted = boolean('textInverted', false);
   const valueColor = color('value color', '#fff');
+  const seriesColor = boolean('use series color', false);
   const borderColor = color('value border color', 'rgba(0,0,0,1)');
   const borderSize = number('value border width', 1.5);
 
@@ -62,6 +68,26 @@ export const Example = () => {
 
   const maxFontSize = number('Max font size', 25);
   const minFontSize = number('Min font size', 10);
+
+  const offsetX = number('offsetX', 0);
+  const offsetY = number('offsetY', 0);
+  const putLabelOutside = boolean('Set label outside', false);
+
+  const chartRotation = getChartRotationKnob();
+
+  const isChartRotated = Math.abs(chartRotation) === 90;
+  const isChartFlipped = chartRotation === 180;
+  const offsetYWithDirectionFactor = isChartFlipped ? -1 : 1;
+  const offsetXWithDirectionFactor = isChartRotated && chartRotation > 0 ? -1 : 1;
+
+  // Use the function version of it for putOutsideLabel option
+  const offsetXValue = putLabelOutside
+    ? ({ width }: { width: number }) => (isChartRotated ? offsetXWithDirectionFactor * width : 0) + offsetX
+    : offsetX;
+
+  const offsetYValue = putLabelOutside
+    ? ({ height }: { height: number }) => (isChartRotated ? 0 : offsetYWithDirectionFactor * height) + offsetY
+    : offsetY;
 
   const theme = {
     barSeriesStyle: {
@@ -72,9 +98,9 @@ export const Example = () => {
         padding: 0,
         fill: useInverted
           ? { textInverted: useInverted, textContrast: true, textBorder: borderSize }
-          : { color: valueColor, borderColor, borderWidth: borderSize },
-        offsetX: number('offsetX', 0),
-        offsetY: number('offsetY', 0),
+          : { color: seriesColor ? 'series' : valueColor, borderColor, borderWidth: borderSize },
+        offsetX: offsetXValue,
+        offsetY: offsetYValue,
         alignment: {
           horizontal: select(
             'Horizontal alignment',
@@ -118,10 +144,17 @@ export const Example = () => {
   const splitSeriesAccessors = isSplitSeries ? ['g'] : undefined;
   const stackAccessors = isStackedSeries ? ['x'] : undefined;
   return (
-    <Chart renderer="canvas" className="story-chart">
-      <Settings theme={theme} debug={debug} rotation={getChartRotationKnob()} showLegend showLegendExtra />
+    <Chart renderer="canvas" className={className}>
+      <Settings
+        baseTheme={darkmode ? DARK_THEME : LIGHT_THEME}
+        theme={theme}
+        debug={debug}
+        rotation={chartRotation}
+        showLegend
+        showLegendExtra
+      />
       <Axis id="bottom" position={Position.Bottom} title="Bottom axis" showOverlappingTicks />
-      <Axis id="left2" title="Left axis" position={Position.Left} tickFormat={(d: any) => Number(d).toFixed(2)} />
+      <Axis id="left2" title="Left axis" position={Position.Left} tickFormat={(d: any) => Number(d).toFixed(1)} />
       <BarSeries
         id="bars"
         displayValueSettings={displayValueSettings}

@@ -291,8 +291,8 @@ export type PartialTheme = RecursivePartial<Theme>;
 
 /** @public */
 export type DisplayValueStyle = Omit<TextStyle, 'fill' | 'fontSize'> & {
-  offsetX: number;
-  offsetY: number;
+  offsetX: number | ((box: { width: number; height: number }) => number);
+  offsetY: number | ((box: { width: number; height: number }) => number);
   fontSize:
     | number
     | {
@@ -301,7 +301,7 @@ export type DisplayValueStyle = Omit<TextStyle, 'fill' | 'fontSize'> & {
       };
   fill:
     | Color
-    | { color: Color; borderColor?: Color; borderWidth?: number }
+    | { color: Color | 'series'; borderColor?: Color; borderWidth?: number }
     | {
         textInvertible: boolean;
         textContrast?: number | boolean;

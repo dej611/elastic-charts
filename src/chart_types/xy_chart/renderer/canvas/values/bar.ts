@@ -48,6 +48,26 @@ const CHART_DIRECTION: Record<string, Rotation> = {
 export function renderBarValues(ctx: CanvasRenderingContext2D, props: BarValuesProps) {
   const { bars, debug, chartRotation, chartDimensions, theme } = props;
   const { fontFamily, fontStyle, fill, alignment } = theme.barSeriesStyle.displayValue;
+
+  const isHorizontalDirection = Math.abs(chartRotation) === CHART_DIRECTION.LeftToRight;
+  // build a single big bar for each x bucket
+  const oneBarPerBucket: Record<string, Dimensions> = bars.reduce<Record<string, Dimensions>>(
+    (bucketedBars, { x, y, width, height }) => {
+      const bucket = isHorizontalDirection ? y : x;
+      // eslint-disable-next-line no-param-reassign
+      bucketedBars[bucket] = bucketedBars[bucket] || { left: x, top: y, width, height };
+      if (isHorizontalDirection) {
+        // eslint-disable-next-line no-param-reassign
+        bucketedBars[bucket].width += width;
+      } else {
+        // eslint-disable-next-line no-param-reassign
+        bucketedBars[bucket].height += height;
+      }
+      return bucketedBars;
+    },
+    {},
+  );
+
   const barsLength = bars.length;
   for (let i = 0; i < barsLength; i++) {
     const { displayValue } = bars[i];
@@ -90,7 +110,16 @@ export function renderBarValues(ctx: CanvasRenderingContext2D, props: BarValuesP
     const { width, height } = textLines;
     const linesLength = textLines.lines.length;
     const shadowSize = getTextBorderSize(fill);
-    const { fillColor, shadowColor } = getTextColors(fill, bars[i].color, shadowSize);
+
+    const cumulativeBarPerBucket = oneBarPerBucket[isHorizontalDirection ? bars[i].y : bars[i].x];
+
+    const { fillColor, shadowColor } = getTextColors(
+      fill,
+      bars[i].color,
+      shadowSize,
+      isOverflow(rect, cumulativeBarPerBucket, chartRotation),
+      theme.background.color,
+    );
 
     for (let j = 0; j < linesLength; j++) {
       const textLine = textLines.lines[j];
@@ -258,17 +287,22 @@ function positionText(
   geom: BarGeometry,
   valueBox: { width: number; height: number },
   chartRotation: Rotation,
-  offsets: { offsetX: number; offsetY: number },
+  offsets: {
+    offsetX: number | ((valueBox: { width: number; height: number }) => number);
+    offsetY: number | ((valueBox: { width: number; height: number }) => number);
+  },
   alignment?: TextAlignment,
 ): { x: number; y: number; align: TextAlign; baseline: TextBaseline; rect: Rect } {
   const { offsetX, offsetY } = offsets;
+  const computedOffsetX = typeof offsetX === 'function' ? offsetX(valueBox) : offsetX;
+  const computedOffsetY = typeof offsetY === 'function' ? offsetY(valueBox) : offsetY;
 
   const { alignmentOffsetX, alignmentOffsetY } = computeAlignmentOffset(geom, valueBox, chartRotation, alignment);
 
   switch (chartRotation) {
     case CHART_DIRECTION.TopToBottom: {
-      const x = geom.x + geom.width / 2 - offsetX + alignmentOffsetX;
-      const y = geom.y + offsetY + alignmentOffsetY;
+      const x = geom.x + geom.width / 2 - computedOffsetX + alignmentOffsetX;
+      const y = geom.y + computedOffsetY + alignmentOffsetY;
       return {
         x,
         y,
@@ -283,8 +317,8 @@ function positionText(
       };
     }
     case CHART_DIRECTION.RightToLeft: {
-      const x = geom.x + geom.width + offsetY + alignmentOffsetY;
-      const y = geom.y - offsetX + alignmentOffsetX;
+      const x = geom.x + geom.width + computedOffsetY + alignmentOffsetY;
+      const y = geom.y - computedOffsetX + alignmentOffsetX;
       return {
         x,
         y,
@@ -299,8 +333,8 @@ function positionText(
       };
     }
     case CHART_DIRECTION.LeftToRight: {
-      const x = geom.x - offsetY + alignmentOffsetY;
-      const y = geom.y + offsetX + alignmentOffsetX;
+      const x = geom.x - computedOffsetY + alignmentOffsetY;
+      const y = geom.y + computedOffsetX + alignmentOffsetX;
       return {
         x,
         y,
@@ -316,8 +350,8 @@ function positionText(
     }
     case CHART_DIRECTION.BottomUp:
     default: {
-      const x = geom.x + geom.width / 2 - offsetX + alignmentOffsetX;
-      const y = geom.y - offsetY + alignmentOffsetY;
+      const x = geom.x + geom.width / 2 - computedOffsetX + alignmentOffsetX;
+      const y = geom.y - computedOffsetY + alignmentOffsetY;
       return {
         x,
         y,
@@ -363,36 +397,48 @@ function getTextColors(
   fillDefinition: ValueFillDefinition,
   geometryColor: string,
   borderSize: number,
+  isOutsideGeometry: boolean,
+  themeBackground: string,
 ): { fillColor: string; shadowColor: string } {
   if (typeof fillDefinition === 'string') {
     return { fillColor: fillDefinition, shadowColor: TRANSPARENT_COLOR };
   }
+
   if ('color' in fillDefinition) {
+    if (fillDefinition.color !== 'series') {
+      return {
+        fillColor: fillDefinition.color,
+        shadowColor: fillDefinition.borderColor || TRANSPARENT_COLOR,
+      };
+    }
     return {
-      fillColor: fillDefinition.color,
+      fillColor: geometryColor,
       shadowColor: fillDefinition.borderColor || TRANSPARENT_COLOR,
     };
   }
+
+  const backgroundColor = themeBackground === 'transparent' ? TRANSPARENT_COLOR : themeBackground;
   const fillColor =
     getFillTextColor(
       DEFAULT_VALUE_COLOR,
       fillDefinition.textInvertible,
       fillDefinition.textContrast || false,
       geometryColor,
-      'white',
+      backgroundColor,
     ) || DEFAULT_VALUE_COLOR;
 
   // If the border is too wide it can overlap between a letter or another
   // therefore use a solid color for thinker borders
   const defaultBorderColor = borderSize < 2 ? DEFAULT_VALUE_BORDER_COLOR : DEFAULT_VALUE_BORDER_SOLID_COLOR;
   const shadowColor =
-    'textBorder' in fillDefinition
+    'textBorder' in fillDefinition && fillDefinition.textBorder !== false
       ? getTextColorIfTextInvertible(
           colorIsDark(fillColor),
           colorIsDark(defaultBorderColor),
           defaultBorderColor,
           false,
-          geometryColor,
+          // TODO: the perfect fix here would be to find the exact color underneath
+          isOutsideGeometry ? backgroundColor : geometryColor,
         ) || TRANSPARENT_COLOR
       : TRANSPARENT_COLOR;
 
