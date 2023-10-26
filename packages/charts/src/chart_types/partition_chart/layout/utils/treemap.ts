@@ -27,13 +27,14 @@ function layVector(
   nodes: HierarchyOfArrays,
   independentSize: number,
   areaAccessor: (e: ArrayEntry) => number,
+  rescaleAreaFactor: number = 1,
 ): LayoutElement {
-  const area = nodes.reduce((p, n) => p + areaAccessor(n), 0);
+  const area = nodes.reduce((p, n) => p + areaAccessor(n) * rescaleAreaFactor, 0);
   const dependentSize = area / independentSize; // here we lose a bit of accuracy
   let currentOffset = 0;
   const sectionOffsets = [currentOffset];
   const sectionSizes = nodes.map((e, i) => {
-    const sectionSize = areaAccessor(e) / dependentSize; // here we gain back a bit of accuracy
+    const sectionSize = (rescaleAreaFactor * areaAccessor(e)) / dependentSize; // here we gain back a bit of accuracy
     if (i < nodes.length - 1) sectionOffsets.push((currentOffset += sectionSize));
     return sectionSize;
   });
@@ -77,6 +78,7 @@ function bestVector(
   height: number,
   areaAccessor: (e: ArrayEntry) => number,
   layout: LayerLayout | null,
+  rescaleAreaFactor: number = 1,
 ): LayoutElement {
   let previousWorstAspectRatio = -1;
   let currentWorstAspectRatio = 0;
@@ -87,7 +89,7 @@ function bestVector(
   do {
     previousVectorLayout = currentVectorLayout;
     previousWorstAspectRatio = currentWorstAspectRatio;
-    currentVectorLayout = layVector(nodes.slice(0, currentCount), height, areaAccessor);
+    currentVectorLayout = layVector(nodes.slice(0, currentCount), height, areaAccessor, rescaleAreaFactor);
     currentWorstAspectRatio = leastSquarishAspectRatio(currentVectorLayout);
   } while (currentCount++ < nodes.length && (layout || currentWorstAspectRatio > previousWorstAspectRatio));
 
@@ -111,8 +113,26 @@ function vectorNodeCoordinates(vectorLayout: LayoutElement, x0Base: number, y0Ba
 export const getTopPadding = (requestedTopPadding: number, fullHeight: Pixels) =>
   Math.min(requestedTopPadding, fullHeight * MAX_TOP_PADDING_RATIO);
 
-/** @internal */
-export function treemap(
+type Thunk<Ret> = () => Ret | Thunk<Ret>;
+type TrampolinedFn<Args extends unknown[], Ret> = (...args: Args) => Ret | Thunk<Ret>;
+
+function isThunk<Ret>(arg: Thunk<Ret> | Ret): arg is Thunk<Ret> {
+  return typeof arg === 'function';
+}
+
+function trampoline<Args extends unknown[], Ret>(fn: TrampolinedFn<Args, Ret>) {
+  return function trampolined(...args: Args) {
+    let result = fn(...args);
+
+    while (isThunk(result)) {
+      result = result();
+    }
+
+    return result;
+  };
+}
+
+function innerTreemap(
   nodes: HierarchyOfArrays,
   areaAccessor: (e: ArrayEntry) => number,
   topPaddingAccessor: (e: ArrayEntry) => number,
@@ -124,19 +144,26 @@ export function treemap(
     height: outerHeight,
   }: { x0: number; y0: number; width: number; height: number },
   layouts: LayerLayout[],
-): Array<Part> {
-  if (nodes.length === 0) return [];
+  rescaleAreaFactor: number = 1,
+): Part[] | (() => Part[]) {
+  if (nodes.length === 0 || Number.isNaN(outerX0) || Number.isNaN(outerY0)) return [];
   // some bias toward horizontal rectangles with a golden ratio of width to height
   const depth = (nodes[0]?.[1][DEPTH_KEY] ?? 1) - 1;
   const layerLayout = layouts[depth] ?? null;
   const vertical = layerLayout === LayerLayout.vertical || (!layerLayout && outerWidth / GOLDEN_RATIO <= outerHeight);
   const independentSize = vertical ? outerWidth : outerHeight;
-  const vectorElements = bestVector(nodes, independentSize, areaAccessor, layerLayout);
-  const vector = vectorNodeCoordinates(vectorElements, outerX0, outerY0, vertical);
+  const vectorElements = bestVector(nodes, independentSize, areaAccessor, layerLayout, rescaleAreaFactor);
+  const vector: Part[] = vectorNodeCoordinates(vectorElements, outerX0, outerY0, vertical);
   const { dependentSize } = vectorElements;
-  return vector
-    .concat(
-      ...vector.map(({ node, x0, y0, x1, y1 }) => {
+
+  const moreVectors =
+    vector.some(({ node }) => entryValue(node)[CHILDREN_KEY].length) || nodes.slice(vector.length).length > 0;
+  if (!moreVectors) {
+    return vector;
+  }
+  return () =>
+    vector.concat(
+      ...vector.map<Part[]>(({ node, x0, y0, x1, y1 }) => {
         const childrenNodes = entryValue(node)[CHILDREN_KEY];
         if (childrenNodes.length === 0) {
           return [];
@@ -151,9 +178,10 @@ export function treemap(
         const topPadding = getTopPadding(topPaddingAccessor(node), fullHeight);
         const width = fullWidth - 2 * uPadding;
         const height = fullHeight - uPadding - topPadding;
+        // eslint-disable-next-line @typescript-eslint/no-use-before-define
         return treemap(
           childrenNodes,
-          (d) => ((width * height) / (fullWidth * fullHeight)) * areaAccessor(d),
+          areaAccessor,
           topPaddingAccessor,
           paddingAccessor,
           {
@@ -163,10 +191,10 @@ export function treemap(
             height,
           },
           layouts,
+          (rescaleAreaFactor * (width * height)) / (fullWidth * fullHeight),
         );
       }),
-    )
-    .concat(
+      // eslint-disable-next-line @typescript-eslint/no-use-before-define
       treemap(
         nodes.slice(vector.length),
         areaAccessor,
@@ -176,6 +204,10 @@ export function treemap(
           ? { x0: outerX0, y0: outerY0 + dependentSize, width: outerWidth, height: outerHeight - dependentSize }
           : { x0: outerX0 + dependentSize, y0: outerY0, width: outerWidth - dependentSize, height: outerHeight },
         layouts,
+        rescaleAreaFactor,
       ),
     );
 }
+
+/** @internal */
+export const treemap = trampoline(innerTreemap);
