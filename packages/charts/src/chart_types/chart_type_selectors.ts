@@ -8,6 +8,7 @@
 
 import { ChartType } from '.';
 import { chartSelectorsFactory as bulletSelectorsFactory } from './bullet_graph/chart_selectors';
+import { chartSelectorsFactory as traceSelectorsFactory } from './trace_chart/chart_selectors';
 import { chartSelectorsFactory as flameSelectorsFactory } from './flame_chart/chart_selectors';
 import { chartSelectorsFactory as goalSelectorsFactory } from './goal_chart/state/chart_selectors';
 import { chartSelectorsFactory as heatmapSelectorsFactory } from './heatmap/state/chart_selectors';
@@ -29,7 +30,6 @@ export const chartTypeSelectors: Record<ChartType, () => ChartSelectors | null> 
   [ChartType.Wordcloud]: wordcloudSelectorsFactory,
   [ChartType.Metric]: metricSelectorsFactory,
   [ChartType.Bullet]: bulletSelectorsFactory,
-  // The Trace selectors are introduced later in this stack; until then the chart type is inert.
-  [ChartType.Trace]: () => null,
+  [ChartType.Trace]: traceSelectorsFactory,
   [ChartType.Global]: () => null,
 }; // with no default, TS signals if a new chart type isn't added here too

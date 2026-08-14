@@ -9,6 +9,7 @@
 import { ChartType } from '.';
 import { chartRenderer as bulletRenderer } from './bullet_graph/chart_renderer';
 import { FlameWithTooltip as flameRenderer } from './flame_chart/flame_chart';
+import { chartRenderer as traceRenderer } from './trace_chart/trace_chart';
 import { chartRenderer as goalRenderer } from './goal_chart/state/chart_renderer';
 import { chartRenderer as heatmapRenderer } from './heatmap/state/chart_renderer';
 import { chartRenderer as metricRenderer } from './metric/state/chart_renderer';
@@ -29,7 +30,6 @@ export const chartTypeRenderer: Record<ChartType, () => ChartRenderer | null> = 
   [ChartType.Wordcloud]: () => wordcloudRenderer,
   [ChartType.Metric]: () => metricRenderer,
   [ChartType.Bullet]: () => bulletRenderer,
-  // The Trace renderer is introduced later in this stack; until then the chart type is inert.
-  [ChartType.Trace]: () => null,
+  [ChartType.Trace]: () => traceRenderer,
   [ChartType.Global]: () => null,
 }; // with no default, TS signals if a new chart type isn't added here too
