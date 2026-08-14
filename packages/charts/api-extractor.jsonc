@@ -410,11 +410,6 @@
         "logLevel": "warning",
         "addToApiReportFile": true
       },
-      // Forward-reference to TraceElementEvent/TraceBadgeElementEvent/TraceAnnotationElementEvent
-      // which are exported in layer 6 of the stacked PR. Remove this entry after layer 6 merges.
-      "ae-unresolved-link": {
-        "logLevel": "none"
-      }
     },
 
     /**

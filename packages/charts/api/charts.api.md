@@ -1191,12 +1191,12 @@ export interface DomainRange {
 }
 
 // @public
-export type ElementClickListener = (elements: Array<XYChartElementEvent | PartitionElementEvent | FlameElementEvent | HeatmapElementEvent | WordCloudElementEvent | MetricElementEvent>, options?: {
+export type ElementClickListener = (elements: Array<XYChartElementEvent | PartitionElementEvent | FlameElementEvent | HeatmapElementEvent | WordCloudElementEvent | MetricElementEvent | TraceElementEvent | TraceBadgeElementEvent | TraceAnnotationElementEvent>, options?: {
     keyPressed: KeyPressed;
 }) => void;
 
 // @public (undocumented)
-export type ElementOverListener = (elements: Array<XYChartElementEvent | PartitionElementEvent | FlameElementEvent | HeatmapElementEvent | WordCloudElementEvent | MetricElementEvent>) => void;
+export type ElementOverListener = (elements: Array<XYChartElementEvent | PartitionElementEvent | FlameElementEvent | HeatmapElementEvent | WordCloudElementEvent | MetricElementEvent | TraceElementEvent | TraceBadgeElementEvent | TraceAnnotationElementEvent>) => void;
 
 // @public (undocumented)
 export const entryKey: ([key]: ArrayEntry) => string;
@@ -1788,6 +1788,15 @@ export type IsAny<T, True, False = never> = True | False extends (T extends neve
 
 // @public
 export function isMetricElementEvent(e: Parameters<ElementClickListener>[0][0]): e is MetricElementEvent;
+
+// @public
+export function isTraceAnnotationElementEvent(e: Parameters<ElementClickListener>[0][0]): e is TraceAnnotationElementEvent;
+
+// @public
+export function isTraceBadgeElementEvent(e: Parameters<ElementClickListener>[0][0]): e is TraceBadgeElementEvent;
+
+// @public
+export function isTraceElementEvent(e: Parameters<ElementClickListener>[0][0]): e is TraceElementEvent;
 
 // @public
 export type IsUnknown<T, True, False = never> = unknown extends T ? IsAny<T, False, True> : False;
@@ -3772,6 +3781,24 @@ export type TraceAnnotationDatum = {
 };
 
 // @public
+export type TraceAnnotationElementEvent = (TraceAnnotationElementEventBase & {
+    annotationType: 'time';
+    span?: never;
+}) | (TraceAnnotationElementEventBase & {
+    annotationType: Exclude<TraceAnnotationType, 'time'>;
+    span: TraceSpanInfo;
+});
+
+// @public
+export interface TraceAnnotationElementEventBase {
+    annotation: TraceAnnotationDatum;
+    chartX?: number;
+    chartY?: number;
+    // (undocumented)
+    type: 'traceAnnotationEvent';
+}
+
+// @public
 export interface TraceAnnotationStyle {
     fillOpacity: number;
     hoverFillOpacity: number;
@@ -3791,6 +3818,16 @@ export interface TraceBadgeColorStyle {
     border?: Color;
     // (undocumented)
     text: Color;
+}
+
+// @public
+export interface TraceBadgeElementEvent {
+    badge: TraceSpanBadge;
+    chartX?: number;
+    chartY?: number;
+    span: TraceSpanInfo;
+    // (undocumented)
+    type: 'traceBadgeEvent';
 }
 
 // @public
@@ -3928,6 +3965,13 @@ export interface TraceDatum {
     start: number;
     // (undocumented)
     traceId?: string;
+}
+
+// @public
+export interface TraceElementEvent {
+    span: TraceSpanInfo;
+    // (undocumented)
+    type: 'traceElementEvent';
 }
 
 // @public
