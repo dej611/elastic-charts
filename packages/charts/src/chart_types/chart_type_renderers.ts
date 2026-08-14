@@ -29,5 +29,7 @@ export const chartTypeRenderer: Record<ChartType, () => ChartRenderer | null> = 
   [ChartType.Wordcloud]: () => wordcloudRenderer,
   [ChartType.Metric]: () => metricRenderer,
   [ChartType.Bullet]: () => bulletRenderer,
+  // The Trace renderer is introduced later in this stack; until then the chart type is inert.
+  [ChartType.Trace]: () => null,
   [ChartType.Global]: () => null,
 }; // with no default, TS signals if a new chart type isn't added here too

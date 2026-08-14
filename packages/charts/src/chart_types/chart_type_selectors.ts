@@ -29,5 +29,7 @@ export const chartTypeSelectors: Record<ChartType, () => ChartSelectors | null> 
   [ChartType.Wordcloud]: wordcloudSelectorsFactory,
   [ChartType.Metric]: metricSelectorsFactory,
   [ChartType.Bullet]: bulletSelectorsFactory,
+  // The Trace selectors are introduced later in this stack; until then the chart type is inert.
+  [ChartType.Trace]: () => null,
   [ChartType.Global]: () => null,
 }; // with no default, TS signals if a new chart type isn't added here too
